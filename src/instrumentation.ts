@@ -3,8 +3,8 @@
  * Starts background GPS polling interval (every 30 seconds).
  */
 export async function register() {
-  // Only run on the server (not during build or in edge runtime)
-  if (typeof globalThis.setInterval === 'undefined') return;
+  // Only run in Node.js runtime (NOT in Edge — Prisma needs Node.js APIs)
+  if (process.env.NEXT_RUNTIME !== 'nodejs') return;
 
   // Avoid duplicate intervals in development (hot reload)
   const global = globalThis as unknown as { __gpsPollingStarted?: boolean };
