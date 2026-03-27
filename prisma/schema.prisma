@@ -1,0 +1,351 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ========== EXISTING TABLES (from bot) ==========
+
+model projects {
+  id                 Int      @id @default(autoincrement())
+  name               String
+  address            String?
+  status             String   @default("active")
+  telegram_group_id  BigInt?
+  topic_thread_id    Int?
+  topics_enabled     Boolean  @default(false)
+  budget_czk         Decimal  @default(0) @db.Decimal(12, 2)
+  budget_original    Decimal  @default(0) @db.Decimal(12, 2)
+  budget_currency    String   @default("CZK")
+  labor_budget_czk   Decimal  @default(0) @db.Decimal(12, 2)
+  allocated_hours    Decimal  @default(0) @db.Decimal(8, 2)
+  start_date         DateTime? @db.Date
+  end_date           DateTime? @db.Date
+  created_at         DateTime @default(now())
+  updated_at         DateTime @default(now()) @updatedAt
+
+  message_buffer     message_buffer[]
+  receipts           receipts[]
+  daily_reports      daily_reports[]
+  daily_summaries    daily_summaries[]
+  worker_hours       worker_hours[]
+  project_topics     project_topics[]
+  invoices           invoices[]
+  manager_reports    manager_reports[]
+  tasks              tasks[]
+  geozones           geozones[]
+  gps_work_hours     gps_work_hours[]
+}
+
+model message_buffer {
+  id                  Int      @id @default(autoincrement())
+  project_id          Int?
+  telegram_group_id   BigInt
+  telegram_user_id    BigInt
+  user_name           String?
+  message_type        String
+  content             String
+  telegram_message_id Int?
+  message_date        DateTime @db.Date
+  created_at          DateTime @default(now())
+
+  project             projects? @relation(fields: [project_id], references: [id])
+
+  @@index([telegram_group_id, message_date])
+}
+
+model receipts {
+  id                  Int      @id @default(autoincrement())
+  project_id          Int?
+  telegram_group_id   BigInt
+  telegram_user_id    BigInt
+  telegram_message_id Int?
+  file_id             String?
+  amount_original     Decimal? @db.Decimal(12, 2)
+  currency_original   String?
+  amount_czk          Decimal? @db.Decimal(12, 2)
+  exchange_rate       Decimal? @db.Decimal(12, 6)
+  receipt_date        DateTime? @db.Date
+  category            String?
+  description         String?
+  shop                String?
+  recognition_status  String   @default("pending")
+  raw_gemini_response Json?
+  created_at          DateTime @default(now())
+  updated_at          DateTime @default(now()) @updatedAt
+
+  project             projects? @relation(fields: [project_id], references: [id])
+
+  @@index([project_id, receipt_date])
+}
+
+model daily_reports {
+  id                  Int       @id @default(autoincrement())
+  project_id          Int?
+  report_date         DateTime  @db.Date
+  report_text         String
+  done_block          String?
+  required_block      String?
+  planned_block       String?
+  telegram_message_id Int?
+  topic_message_id    Int?
+  synced_to_sheets    Boolean   @default(false)
+  created_at          DateTime  @default(now())
+
+  project             projects? @relation(fields: [project_id], references: [id])
+
+  @@unique([project_id, report_date])
+}
+
+model daily_summaries {
+  id                Int       @id @default(autoincrement())
+  project_id        Int?
+  summary_date      DateTime  @db.Date
+  spent_today_czk   Decimal   @default(0) @db.Decimal(12, 2)
+  spent_total_czk   Decimal   @default(0) @db.Decimal(12, 2)
+  budget_czk        Decimal   @default(0) @db.Decimal(12, 2)
+  remaining_czk     Decimal   @default(0) @db.Decimal(12, 2)
+  summary_text      String?
+  telegram_message_id Int?
+  created_at        DateTime  @default(now())
+
+  project           projects? @relation(fields: [project_id], references: [id])
+
+  @@unique([project_id, summary_date])
+}
+
+model worker_hours {
+  id                  Int      @id @default(autoincrement())
+  project_id          Int?
+  telegram_group_id   BigInt
+  reported_by_user_id BigInt
+  worker_name         String
+  worker_type         String   @default("helper")
+  hours               Decimal  @db.Decimal(6, 2)
+  work_date           DateTime @db.Date
+  synced_to_sheets    Boolean  @default(false)
+  created_at          DateTime @default(now())
+  updated_at          DateTime @default(now()) @updatedAt
+
+  project             projects? @relation(fields: [project_id], references: [id])
+
+  @@index([project_id, work_date])
+  @@index([telegram_group_id, work_date])
+}
+
+model project_topics {
+  id                Int      @id @default(autoincrement())
+  project_id        Int
+  telegram_group_id BigInt
+  topic_thread_id   Int
+  topic_type        String   @default("general")
+  created_at        DateTime @default(now())
+
+  project           projects @relation(fields: [project_id], references: [id], onDelete: Cascade)
+
+  @@unique([telegram_group_id, topic_thread_id])
+  @@index([project_id])
+}
+
+model currency_cache {
+  id            Int      @id @default(autoincrement())
+  from_currency String
+  to_currency   String
+  rate          Decimal  @db.Decimal(12, 6)
+  fetched_at    DateTime @default(now())
+
+  @@unique([from_currency, to_currency])
+}
+
+model sheets_sync_state {
+  id                Int       @id @default(autoincrement())
+  sheet_name        String    @unique
+  last_pg_to_sheets DateTime?
+  last_sheets_to_pg DateTime?
+  sheet_modified_at DateTime?
+}
+
+model invoices {
+  id                  Int      @id @default(autoincrement())
+  project_id          Int
+  invoice_number      String?
+  approved            String?
+  amount_bez_dph      Decimal? @db.Decimal(12, 2)
+  vat_rate            String?
+  amount_s_dph        Decimal? @db.Decimal(12, 2)
+  remaining           Decimal? @db.Decimal(12, 2)
+  date_issued         String?
+  date_due            String?
+  date_paid           String?
+  payment_status      String?
+  drive_link          String?
+  file_id             String?
+  raw_gemini_response Json?
+  sheet_row           Int?
+  created_by_user_id  BigInt?
+  created_at          DateTime @default(now())
+  updated_at          DateTime @default(now()) @updatedAt
+
+  project             projects @relation(fields: [project_id], references: [id], onDelete: Cascade)
+}
+
+model workers {
+  id                  Int       @id @default(autoincrement())
+  name                String
+  username            String?
+  worker_type         String    @default("helper")
+  hourly_rate         Decimal?  @db.Decimal(10, 2)
+  created_by_user_id  BigInt
+  created_at          DateTime  @default(now())
+  updated_at          DateTime  @default(now()) @updatedAt
+
+  vehicles            vehicles[]
+}
+
+model manager_reports {
+  id                    Int      @id @default(autoincrement())
+  project_id            Int
+  report_date           DateTime @db.Date
+  telegram_user_id      BigInt
+  manager_name          String
+  raw_text              String
+  done_block            String?
+  problems_block        String?
+  extra_work_block      String?
+  need_to_order_block   String?
+  plan_tomorrow_block   String?
+  telegram_group_id     BigInt
+  telegram_message_id   Int?
+  topic_thread_id       Int?
+  message_link          String?
+  spent_on_work_czk     Decimal  @default(0) @db.Decimal(12, 2)
+  spent_on_materials_czk Decimal @default(0) @db.Decimal(12, 2)
+  synced_to_sheets      Boolean  @default(false)
+  sheet_row             Int?
+  created_at            DateTime @default(now())
+  updated_at            DateTime @default(now()) @updatedAt
+
+  project               projects @relation(fields: [project_id], references: [id], onDelete: Cascade)
+  tasks                 tasks[]
+
+  @@unique([project_id, report_date])
+}
+
+model tasks {
+  id                   Int       @id @default(autoincrement())
+  project_id           Int
+  manager_report_id    Int?
+  description          String
+  source_section       String
+  status               String    @default("open")
+  created_date         DateTime  @db.Date
+  completed_date       DateTime? @db.Date
+  reported_by          String?
+  completed_by         String?
+  completed_by_user_id BigInt?
+  synced_to_sheets     Boolean   @default(false)
+  sheet_row            Int?
+  created_at           DateTime  @default(now())
+  updated_at           DateTime  @default(now()) @updatedAt
+
+  project              projects         @relation(fields: [project_id], references: [id], onDelete: Cascade)
+  manager_report       manager_reports? @relation(fields: [manager_report_id], references: [id], onDelete: SetNull)
+
+  @@index([project_id, status])
+  @@index([project_id, created_date])
+}
+
+// ========== NEW TABLES (for web interface) ==========
+
+model users {
+  id            Int      @id @default(autoincrement())
+  email         String   @unique
+  password_hash String
+  name          String
+  role          String   @default("manager")
+  created_at    DateTime @default(now())
+  updated_at    DateTime @default(now()) @updatedAt
+}
+
+model vehicles {
+  id             Int      @id @default(autoincrement())
+  name           String
+  license_plate  String?
+  vin            String?  @unique
+  gps_device_id  String?
+  worker_id      Int?
+  status         String   @default("active")
+  created_at     DateTime @default(now())
+  updated_at     DateTime @default(now()) @updatedAt
+
+  worker         workers? @relation(fields: [worker_id], references: [id], onDelete: SetNull)
+  gps_tracks     gps_tracks[]
+  gps_work_hours gps_work_hours[]
+}
+
+model geozones {
+  id         Int      @id @default(autoincrement())
+  name       String                                // "Объект Troja" / "Bauhaus Čestlice"
+  type       String   @default("project")          // project | shop | warehouse | other
+  project_id Int?                                  // null for non-project zones
+  lat        Decimal  @db.Decimal(10, 7)
+  lng        Decimal  @db.Decimal(10, 7)
+  radius_m   Int      @default(500)
+  created_at DateTime @default(now())
+  updated_at DateTime @default(now()) @updatedAt
+
+  project        projects?        @relation(fields: [project_id], references: [id], onDelete: Cascade)
+  gps_work_hours gps_work_hours[]
+}
+
+model gps_tracks {
+  id          Int      @id @default(autoincrement())
+  vehicle_id  Int
+  lat         Decimal  @db.Decimal(10, 7)
+  lng         Decimal  @db.Decimal(10, 7)
+  speed       Decimal? @db.Decimal(6, 2)
+  recorded_at DateTime
+  created_at  DateTime @default(now())
+
+  vehicle     vehicles @relation(fields: [vehicle_id], references: [id], onDelete: Cascade)
+
+  @@index([vehicle_id, recorded_at])
+}
+
+model gps_work_hours {
+  id          Int       @id @default(autoincrement())
+  vehicle_id  Int
+  project_id  Int?                                    // null for non-project geozones
+  geozone_id  Int?                                    // link to geozone
+  work_date   DateTime  @db.Date
+  enter_time  DateTime
+  exit_time   DateTime?
+  hours       Decimal?  @db.Decimal(6, 2)
+  created_at  DateTime  @default(now())
+
+  vehicle     vehicles  @relation(fields: [vehicle_id], references: [id], onDelete: Cascade)
+  project     projects? @relation(fields: [project_id], references: [id], onDelete: Cascade)
+  geozone     geozones? @relation(fields: [geozone_id], references: [id], onDelete: SetNull)
+
+  @@unique([vehicle_id, geozone_id, work_date, enter_time])
+}
+
+// Knex migration tables (ignore in Prisma)
+model knex_migrations {
+  id             Int       @id @default(autoincrement())
+  name           String?
+  batch          Int?
+  migration_time DateTime?
+
+  @@ignore
+}
+
+model knex_migrations_lock {
+  index       Int  @id @default(autoincrement())
+  is_locked   Int?
+
+  @@ignore
+}
