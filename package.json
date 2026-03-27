@@ -7,7 +7,7 @@
     "db:generate": "prisma generate",
     "db:push": "prisma db push",
     "db:seed": "npx tsx prisma/seed.ts",
-    "build": "next build --no-turbopack",
+    "build": "next build",
     "start": "next start",
     "lint": "eslint",
     "gps:bg": "npx tsx src/scripts/gps-bg.ts"

@@ -1,39 +1,9 @@
 /**
- * Next.js Instrumentation — runs once on server startup.
- * Starts background GPS polling interval (every 30 seconds).
+ * Next.js Instrumentation.
+ * GPS polling in production runs via PM2 (npm run gps:bg).
+ * In development, run: npm run gps:bg in a separate terminal.
  */
 export async function register() {
-  // Only run in Node.js runtime (NOT in Edge — Prisma needs Node.js APIs)
-  if (process.env.NEXT_RUNTIME !== 'nodejs') return;
-
-  // Avoid duplicate intervals in development (hot reload)
-  const global = globalThis as unknown as { __gpsPollingStarted?: boolean };
-  if (global.__gpsPollingStarted) return;
-  global.__gpsPollingStarted = true;
-
-  const GPS_POLL_INTERVAL = 30_000; // 30 seconds
-
-  console.log(`[GPS] Background polling started (every ${GPS_POLL_INTERVAL / 1000}s)`);
-
-  // Start polling after a short delay to let the server fully initialize
-  setTimeout(() => {
-    // Run immediately on startup
-    pollGps();
-
-    // Then repeat every 30 seconds
-    setInterval(pollGps, GPS_POLL_INTERVAL);
-  }, 5000);
-}
-
-async function pollGps() {
-  try {
-    const { runGpsPoll } = await import('./lib/gps-poller');
-    const result = await runGpsPoll();
-
-    if (result.tracked > 0) {
-      console.log(`[GPS] Polled: ${result.tracked}/${result.total} vehicles tracked`);
-    }
-  } catch (err) {
-    console.error('[GPS] Polling error:', err);
-  }
+  // No-op: GPS polling handled externally to avoid
+  // Prisma/Edge Runtime incompatibility with Turbopack.
 }
